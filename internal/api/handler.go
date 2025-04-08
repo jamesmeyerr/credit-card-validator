@@ -14,7 +14,10 @@ type Request struct {
 
 // Response represents the JSON response structure
 type Response struct {
-	Valid bool `json:"valid"`
+	Valid      bool   `json:"valid"`
+	Network    string `json:"network,omitempty"`
+	CardLength int    `json:"card_length,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 // ValidationHandler handles credit card validation requests
@@ -39,11 +42,31 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the card number
-	isValid := luhn.IsValid(req.CardNumber)
+	if req.CardNumber == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Card number is required"})
+		return
+	}
+
+	// Get card information
+	cardInfo := luhn.ValidateCard(req.CardNumber)
+
+	// Prepare response message
+	message := "Card number is invalid"
+	if cardInfo.Valid {
+		if cardInfo.Network != "Unknown" {
+			message = "Valid " + cardInfo.Network + " card"
+		} else {
+			message = "Valid card, unknown network"
+		}
+	}
 
 	// Prepare response
 	resp := Response{
-		Valid: isValid,
+		Valid:      cardInfo.Valid,
+		Network:    cardInfo.Network,
+		CardLength: cardInfo.CardLength,
+		Message:    message,
 	}
 
 	// Return response

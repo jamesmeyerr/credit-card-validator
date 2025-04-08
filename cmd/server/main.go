@@ -21,8 +21,15 @@ func main() {
 
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", port)
+	fmt.Printf("Credit Card Validation Service\n")
+	fmt.Printf("==============================\n")
 	fmt.Printf("Server running on http://localhost%s\n", serverAddr)
-	fmt.Println("Try validating a credit card with: curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4532015112830366\"}' http://localhost:8080/validate")
+	fmt.Printf("\nAPI Examples:\n")
+	fmt.Printf("- Visa card:         curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4532015112830366\"}' http://localhost%s/validate\n", port)
+	fmt.Printf("- Mastercard:        curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"5555555555554444\"}' http://localhost%s/validate\n", port)
+	fmt.Printf("- American Express:  curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"378282246310005\"}' http://localhost%s/validate\n", port)
+	fmt.Printf("\nSupported card networks: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Diners Club, RuPay, Maestro\n")
+	fmt.Printf("==============================\n")
 	
 	if err := http.ListenAndServe(serverAddr, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
