@@ -1,14 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
-	"context"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/jamesmeyerr/credit-card-validator/internal/api"
 	"github.com/jamesmeyerr/credit-card-validator/internal/middleware"
@@ -33,12 +33,16 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(RateLimit, BucketSize, CleanupInterval)
 	defer rateLimiter.Shutdown()
 
+	// Create input sanitizer with default config
+	sanitizer := middleware.NewInputSanitizer(middleware.DefaultSanitizationConfig())
+
 	// Create router
 	mux := http.NewServeMux()
 	mux.HandleFunc("/validate", api.ValidationHandler)
 
-	// Apply rate limiting middleware
-	rateLimitedHandler := rateLimiter.RateLimitMiddleware(mux)
+	// Apply middleware (order matters - sanitization first, then rate limiting)
+	sanitizedHandler := sanitizer.SanitizeMiddleware(mux)
+	rateLimitedHandler := rateLimiter.RateLimitMiddleware(sanitizedHandler)
 
 	// Create server
 	server := &http.Server{
@@ -59,15 +63,15 @@ func main() {
 		fmt.Printf("==============================\n")
 		fmt.Printf("Server running on http://localhost%s\n", server.Addr)
 		fmt.Printf("Rate limit: %.1f requests per minute per IP (max burst: %d)\n", RateLimit*60, BucketSize)
+		fmt.Printf("Input sanitization: Enabled\n")
 		fmt.Printf("\nAPI Examples:\n")
-		fmt.Printf("- Basic validation:  curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4532015112830366\"}' http://localhost%s/validate\n", port)
+		fmt.Printf("- Basic validation: curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4532015112830366\"}' http://localhost%s/validate\n", port)
 		fmt.Printf("- With expiry date: curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"5555555555554444\",\"expiry_date\":\"12/25\"}' http://localhost%s/validate\n", port)
-		fmt.Printf("- Complete check:   curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"378282246310005\",\"expiry_date\":\"12/25\",\"cvv\":\"1234\"}' http://localhost%s/validate\n", port)
-		fmt.Printf("- Visa example:     curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4111111111111111\",\"expiry_date\":\"12/25\",\"cvv\":\"123\"}' http://localhost%s/validate\n", port)
+		fmt.Printf("- Complete check: curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"378282246310005\",\"expiry_date\":\"12/25\",\"cvv\":\"1234\"}' http://localhost%s/validate\n", port)
+		fmt.Printf("- Visa example: curl -X GET -H \"Content-Type: application/json\" -d '{\"card_number\":\"4111111111111111\",\"expiry_date\":\"12/25\",\"cvv\":\"123\"}' http://localhost%s/validate\n", port)
 		fmt.Printf("\nSupported card networks: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Diners Club, RuPay, Maestro\n")
 		fmt.Printf("Note: American Express requires 4-digit CVV, all other cards use 3-digit CVV\n")
 		fmt.Printf("==============================\n")
-
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Error starting server: %v", err)
 		}
