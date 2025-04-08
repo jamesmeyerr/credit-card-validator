@@ -3,7 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+    "strings"
+	
 	"github.com/jamesmeyerr/credit-card-validator/internal/luhn"
+	"github.com/jamesmeyerr/credit-card-validator/internal/middleware"
 )
 
 // Request represents the JSON request structure
@@ -26,8 +29,12 @@ type Response struct {
 
 // ValidationHandler handles credit card validation requests
 func ValidationHandler(w http.ResponseWriter, r *http.Request) {
+	// Get logger with request context
+	logger := middleware.ApplicationLogger(r.Context())
+	
 	// Accept both GET and POST requests
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		logger.Warn().Str("method", r.Method).Msg("Invalid HTTP method")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -40,6 +47,7 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&req)
 	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to parse JSON request")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON payload"})
 		return
@@ -47,10 +55,19 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the card number
 	if req.CardNumber == "" {
+		logger.Warn().Msg("Missing card number in request")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Card number is required"})
 		return
 	}
+
+	// Mask sensitive data for logging
+	maskedCardNumber := maskCardNumber(req.CardNumber)
+	logger.Debug().
+		Str("card_prefix", maskedCardNumber[:6]+"...").
+		Bool("has_expiry", req.ExpiryDate != "").
+		Bool("has_cvv", req.CVV != "").
+		Msg("Processing validation request")
 
 	// Create validation request
 	validationReq := luhn.CardValidationRequest{
@@ -75,6 +92,16 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 		CVVValid:      cardInfo.CVVValid,
 		Message:       message,
 	}
+
+	// Log result
+	logger.Info().
+		Bool("valid", cardInfo.Valid).
+		Str("network", cardInfo.Network).
+		Int("card_length", cardInfo.CardLength).
+		Bool("expiry_valid", cardInfo.ExpiryValid).
+		Bool("expiry_format_ok", cardInfo.ExpiryFormatOK).
+		Bool("cvv_valid", cardInfo.CVVValid).
+		Msg("Card validation result")
 
 	// Return response
 	w.WriteHeader(http.StatusOK)
@@ -116,4 +143,12 @@ func buildResponseMessage(cardInfo luhn.CardInfo) string {
 	}
 
 	return message
+}
+
+// maskCardNumber hides all but first 6 and last 4 digits
+func maskCardNumber(cardNumber string) string {
+	if len(cardNumber) <= 10 {
+		return cardNumber
+	}
+	return cardNumber[:6] + strings.Repeat("*", len(cardNumber)-10) + cardNumber[len(cardNumber)-4:]
 }

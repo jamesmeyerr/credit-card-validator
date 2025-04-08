@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/jamesmeyerr/credit-card-validator/internal/api"
 	"github.com/jamesmeyerr/credit-card-validator/internal/middleware"
 )
@@ -30,11 +30,10 @@ func main() {
 		port = "8080"
 	}
 
-	// Create a rate limiter
+	// Create middleware components
 	rateLimiter := middleware.NewRateLimiter(RateLimit, BucketSize, CleanupInterval)
 	defer rateLimiter.Shutdown()
-
-	// Create input sanitizer with default config
+	
 	sanitizer := middleware.NewInputSanitizer(middleware.DefaultSanitizationConfig())
 
 	// Create router
@@ -56,8 +55,15 @@ func main() {
 		http.ServeFile(w, r, filepath.Join("web", "templates", "index.html"))
 	})
 
-	// Apply middleware (order matters - sanitization first, then rate limiting)
-	// Only apply to API endpoints, not static files
+	// Build the middleware chain - order matters:
+	// 1. Logging (outermost) - captures all requests
+	// 2. Rate limiting - prevents abuse
+	// 3. Request sanitization - cleans inputs before processing
+	
+	// Apply middleware chain - logging applies to everything
+	handler := middleware.LoggingMiddleware(mux)
+	
+	// For the validate endpoint, add sanitization
 	apiHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/validate" {
 			sanitizer.SanitizeMiddleware(http.HandlerFunc(api.ValidationHandler)).ServeHTTP(w, r)
@@ -66,12 +72,13 @@ func main() {
 		}
 	})
 	
-	rateLimitedHandler := rateLimiter.RateLimitMiddleware(apiHandler)
+	// Rate limiting is the final layer
+	handler = rateLimiter.RateLimitMiddleware(apiHandler)
 
-	// Create server
+	// Create server with all middleware applied
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      rateLimitedHandler,
+		Handler:      handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
@@ -83,6 +90,13 @@ func main() {
 
 	// Start server in a separate goroutine
 	go func() {
+		log.Info().
+			Str("port", port).
+			Float64("rate_limit", RateLimit*60).
+			Int("burst_size", BucketSize).
+			Bool("sanitization", true).
+			Msg("Starting Credit Card Validation Service")
+
 		fmt.Printf("Credit Card Validation Service\n")
 		fmt.Printf("==============================\n")
 		fmt.Printf("Server running on http://localhost%s\n", server.Addr)
@@ -90,15 +104,17 @@ func main() {
 		fmt.Printf("API endpoint: http://localhost%s/validate\n", server.Addr)
 		fmt.Printf("Rate limit: %.1f requests per minute per IP (max burst: %d)\n", RateLimit*60, BucketSize)
 		fmt.Printf("Input sanitization: Enabled\n")
+		fmt.Printf("Structured logging: Enabled\n")
 		fmt.Printf("==============================\n")
+		
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Error starting server: %v", err)
+			log.Fatal().Err(err).Msg("Server failed to start")
 		}
 	}()
 
 	// Wait for interruption signal
 	<-done
-	fmt.Println("\nShutting down server...")
+	log.Info().Msg("Shutting down server...")
 
 	// Create a timeout context for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -106,7 +122,8 @@ func main() {
 
 	// Gracefully shutdown the server
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server shutdown failed: %v", err)
+		log.Fatal().Err(err).Msg("Server shutdown failed")
 	}
-	fmt.Println("Server gracefully stopped")
+	
+	log.Info().Msg("Server gracefully stopped")
 }
