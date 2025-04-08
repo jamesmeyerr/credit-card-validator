@@ -11,6 +11,7 @@ import (
 type Request struct {
 	CardNumber string `json:"card_number"`
 	ExpiryDate string `json:"expiry_date,omitempty"` // Format: MM/YY
+	CVV        string `json:"cvv,omitempty"`         // 3 or 4 digits
 }
 
 // Response represents the JSON response structure
@@ -20,6 +21,7 @@ type Response struct {
 	CardLength      int    `json:"card_length,omitempty"`
 	ExpiryValid     bool   `json:"expiry_valid,omitempty"`
 	ExpiryFormatOK  bool   `json:"expiry_format_ok,omitempty"`
+	CVVValid        bool   `json:"cvv_valid,omitempty"`
 	Message         string `json:"message,omitempty"`
 }
 
@@ -55,6 +57,7 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 	validationReq := luhn.CardValidationRequest{
 		CardNumber: req.CardNumber,
 		ExpiryDate: req.ExpiryDate,
+		CVV:        req.CVV,
 	}
 
 	// Get card information
@@ -70,6 +73,7 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 		CardLength:     cardInfo.CardLength,
 		ExpiryValid:    cardInfo.ExpiryValid,
 		ExpiryFormatOK: cardInfo.ExpiryFormatOK,
+		CVVValid:       cardInfo.CVVValid,
 		Message:        message,
 	}
 
@@ -97,6 +101,18 @@ func buildResponseMessage(cardInfo luhn.CardInfo) string {
 			message += " with valid expiration date"
 		} else {
 			message += " with expired or invalid expiration date"
+		}
+	}
+
+	// Add CVV information if validated
+	if cardInfo.CVVValid {
+		message += " and valid security code (CVV)"
+	} else if cardInfo.CVVValid == false && cardInfo.Network != "" {
+		// Only mention invalid CVV if one was provided (otherwise CVVValid would be false by default)
+		if cardInfo.Network == "American Express" {
+			message += " but invalid security code (should be 4 digits)"
+		} else {
+			message += " but invalid security code (should be 3 digits)"
 		}
 	}
 

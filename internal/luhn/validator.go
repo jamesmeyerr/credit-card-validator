@@ -14,12 +14,14 @@ type CardInfo struct {
 	CardLength      int    `json:"card_length,omitempty"`
 	ExpiryValid     bool   `json:"expiry_valid,omitempty"`
 	ExpiryFormatOK  bool   `json:"expiry_format_ok,omitempty"`
+	CVVValid        bool   `json:"cvv_valid,omitempty"`
 }
 
 // CardValidationRequest contains all information for validating a card
 type CardValidationRequest struct {
 	CardNumber string `json:"card_number"`
 	ExpiryDate string `json:"expiry_date,omitempty"` // Format: MM/YY
+	CVV        string `json:"cvv,omitempty"`         // 3 or 4 digits
 }
 
 // ValidateCard checks if a credit card number is valid and identifies the network
@@ -33,6 +35,7 @@ func ValidateCard(request CardValidationRequest) CardInfo {
 		CardLength:      len(cleanedNumber),
 		ExpiryValid:     false,
 		ExpiryFormatOK:  false,
+		CVVValid:        false,
 	}
 
 	// Skip validation if length is too short
@@ -53,7 +56,30 @@ func ValidateCard(request CardValidationRequest) CardInfo {
 		result.ExpiryValid = expiryValid
 	}
 
+	// Validate CVV if provided
+	if request.CVV != "" {
+		result.CVVValid = validateCVV(request.CVV, result.Network)
+	}
+
 	return result
+}
+
+// validateCVV checks if the CVV/security code is valid for the card type
+func validateCVV(cvv string, network string) bool {
+	// Check if CVV contains only digits
+	for _, r := range cvv {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	// American Express requires a 4-digit CVV
+	if network == "American Express" {
+		return len(cvv) == 4
+	}
+	
+	// Most other cards use a 3-digit CVV
+	return len(cvv) == 3
 }
 
 // validateExpiryDate checks if expiry date is valid (MM/YY format) and not expired
