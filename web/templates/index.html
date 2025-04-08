@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Card Validator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/static/js/app.js" defer></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Credit Card Validator</h1>
+            <p class="text-gray-600">Validate credit card numbers with Luhn algorithm</p>
+        </header>
+
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+            <div class="mb-6">
+                <div class="card-icons flex justify-center space-x-2 mb-4">
+                    <i class="fab fa-cc-visa text-blue-600 text-3xl" id="visa-icon"></i>
+                    <i class="fab fa-cc-mastercard text-orange-600 text-3xl" id="mastercard-icon"></i>
+                    <i class="fab fa-cc-amex text-blue-400 text-3xl" id="amex-icon"></i>
+                    <i class="fab fa-cc-discover text-orange-500 text-3xl" id="discover-icon"></i>
+                    <i class="fas fa-credit-card text-gray-400 text-3xl" id="generic-icon"></i>
+                </div>
+            </div>
+
+            <form id="card-form" class="space-y-4">
+                <div class="form-group">
+                    <label for="card-number" class="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
+                    <input type="text" id="card-number" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="XXXX XXXX XXXX XXXX" autocomplete="off">
+                    <div id="card-type" class="text-sm text-gray-500 mt-1"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="expiry-date" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                        <input type="text" id="expiry-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="MM/YY" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="cvv" class="block text-sm font-medium text-gray-700 mb-1">CVV</label>
+                        <input type="text" id="cvv" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="XXX" maxlength="4" autocomplete="off">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    Validate Card
+                </button>
+            </form>
+
+            <div id="result" class="mt-6 p-4 border rounded-md hidden">
+                <div id="result-valid" class="hidden text-green-600">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span id="valid-message"></span>
+                </div>
+                <div id="result-invalid" class="hidden text-red-600">
+                    <i class="fas fa-times-circle mr-2"></i>
+                    <span id="invalid-message"></span>
+                </div>
+                <div id="result-details" class="mt-2 text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <div class="max-w-md mx-auto mt-8">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Supported Card Networks</h3>
+            <ul class="list-disc pl-5 text-gray-600">
+                <li>Visa (starts with 4)</li>
+                <li>Mastercard (starts with 51-55 or 2221-2720)</li>
+                <li>American Express (starts with 34 or 37)</li>
+                <li>Discover (starts with 6011, 644-649, 65, etc.)</li>
+                <li>JCB, UnionPay, Diners Club, RuPay, Maestro</li>
+            </ul>
+            <p class="mt-4 text-sm text-gray-500">Note: American Express requires a 4-digit CVV, all other cards use a 3-digit CVV.</p>
+        </div>
+    </div>
+
+    <footer class="mt-12 py-4 text-center text-sm text-gray-500">
+        <p>Credit Card Validator - Built with Go, JavaScript, and Tailwind CSS</p>
+    </footer>
+</body>
+</html>

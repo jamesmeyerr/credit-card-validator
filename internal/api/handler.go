@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-
 	"github.com/jamesmeyerr/credit-card-validator/internal/luhn"
 )
 
@@ -16,19 +15,19 @@ type Request struct {
 
 // Response represents the JSON response structure
 type Response struct {
-	Valid           bool   `json:"valid"`
-	Network         string `json:"network,omitempty"`
-	CardLength      int    `json:"card_length,omitempty"`
-	ExpiryValid     bool   `json:"expiry_valid,omitempty"`
-	ExpiryFormatOK  bool   `json:"expiry_format_ok,omitempty"`
-	CVVValid        bool   `json:"cvv_valid,omitempty"`
-	Message         string `json:"message,omitempty"`
+	Valid         bool   `json:"valid"`
+	Network       string `json:"network,omitempty"`
+	CardLength    int    `json:"card_length,omitempty"`
+	ExpiryValid   bool   `json:"expiry_valid,omitempty"`
+	ExpiryFormatOK bool  `json:"expiry_format_ok,omitempty"`
+	CVVValid      bool   `json:"cvv_valid,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 // ValidationHandler handles credit card validation requests
 func ValidationHandler(w http.ResponseWriter, r *http.Request) {
-	// Only accept GET requests
-	if r.Method != http.MethodGet {
+	// Accept both GET and POST requests
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -68,13 +67,13 @@ func ValidationHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	resp := Response{
-		Valid:          cardInfo.Valid,
-		Network:        cardInfo.Network,
-		CardLength:     cardInfo.CardLength,
-		ExpiryValid:    cardInfo.ExpiryValid,
+		Valid:         cardInfo.Valid,
+		Network:       cardInfo.Network,
+		CardLength:    cardInfo.CardLength,
+		ExpiryValid:   cardInfo.ExpiryValid,
 		ExpiryFormatOK: cardInfo.ExpiryFormatOK,
-		CVVValid:       cardInfo.CVVValid,
-		Message:        message,
+		CVVValid:      cardInfo.CVVValid,
+		Message:       message,
 	}
 
 	// Return response
@@ -92,7 +91,7 @@ func buildResponseMessage(cardInfo luhn.CardInfo) string {
 	if cardInfo.Network != "Unknown" {
 		networkInfo = cardInfo.Network
 	}
-
+	
 	message := "Valid " + networkInfo + " card"
 
 	// Add expiry information if provided
