@@ -3,24 +3,36 @@ package luhn
 import (
 	"regexp"
 	"strings"
+	"time"
+	"strconv"
 )
 
 // CardInfo contains validation results and card network information
 type CardInfo struct {
-	Valid      bool   `json:"valid"`
-	Network    string `json:"network,omitempty"`
-	CardLength int    `json:"card_length,omitempty"`
+	Valid           bool   `json:"valid"`
+	Network         string `json:"network,omitempty"`
+	CardLength      int    `json:"card_length,omitempty"`
+	ExpiryValid     bool   `json:"expiry_valid,omitempty"`
+	ExpiryFormatOK  bool   `json:"expiry_format_ok,omitempty"`
+}
+
+// CardValidationRequest contains all information for validating a card
+type CardValidationRequest struct {
+	CardNumber string `json:"card_number"`
+	ExpiryDate string `json:"expiry_date,omitempty"` // Format: MM/YY
 }
 
 // ValidateCard checks if a credit card number is valid and identifies the network
-func ValidateCard(cardNumber string) CardInfo {
+func ValidateCard(request CardValidationRequest) CardInfo {
 	// Remove any spaces or dashes
-	cleanedNumber := cleanCardNumber(cardNumber)
+	cleanedNumber := cleanCardNumber(request.CardNumber)
 
 	// Create response object
 	result := CardInfo{
-		Valid:      false,
-		CardLength: len(cleanedNumber),
+		Valid:           false,
+		CardLength:      len(cleanedNumber),
+		ExpiryValid:     false,
+		ExpiryFormatOK:  false,
 	}
 
 	// Skip validation if length is too short
@@ -34,7 +46,58 @@ func ValidateCard(cardNumber string) CardInfo {
 	// Identify the card network
 	result.Network = identifyCardNetwork(cleanedNumber)
 
+	// Validate expiry date if provided
+	if request.ExpiryDate != "" {
+		expiryFormatOK, expiryValid := validateExpiryDate(request.ExpiryDate)
+		result.ExpiryFormatOK = expiryFormatOK
+		result.ExpiryValid = expiryValid
+	}
+
 	return result
+}
+
+// validateExpiryDate checks if expiry date is valid (MM/YY format) and not expired
+func validateExpiryDate(expiryDate string) (bool, bool) {
+	// Check format using regex (MM/YY)
+	matched, _ := regexp.MatchString(`^(0[1-9]|1[0-2])/([0-9]{2})$`, expiryDate)
+	if !matched {
+		return false, false // Format is invalid
+	}
+
+	// Split into month and year
+	parts := strings.Split(expiryDate, "/")
+	if len(parts) != 2 {
+		return true, false
+	}
+
+	month, err1 := strconv.Atoi(parts[0])
+	year, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return true, false
+	}
+
+	// Convert YY to YYYY
+	fullYear := 2000 + year
+
+	// Get current date
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	// Check if card is expired
+	if fullYear < currentYear {
+		return true, false // Expired
+	}
+	if fullYear == currentYear && month < currentMonth {
+		return true, false // Expired
+	}
+
+	// Check if expiry date is too far in the future (more than 20 years)
+	if fullYear > currentYear+20 {
+		return true, false // Likely invalid
+	}
+
+	return true, true // Valid expiry date
 }
 
 // cleanCardNumber removes any non-digit characters
